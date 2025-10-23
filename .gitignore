@@ -1,0 +1,111 @@
+# Compiled files
+target/
+**/*.rs.bk
+
+# IDE files
+**/.idea/
+**/.vscode/
+**/.vs/
+**/Thumbs.db
+
+# OS files
+**/.DS_Store
+**/desktop.ini
+
+# Log files
+**/*.log
+
+# Temporary files
+**/*.tmp
+**/*.temp
+
+# Backup files
+**/*~
+**/*.bak
+
+# Archive files
+**/*.rar
+**/*.zip
+**/*.7z
+**/*.tar
+**/*.gz
+
+# Lock files
+**/*.lock
+
+# Markdown files
+**/*.md
+
+# Smart contracts
+**/smart_contracts/
+**/smart-contracts/
+**/contracts/
+
+# Rock Paper Scissors
+**/rock-paper-scissors/
+**/rock_paper_scissors/
+**/rps/
+
+# Sources
+**/sources/
+**/src_backup/
+**/source/
+
+# Rock Paper Scissors Cross Chain directory
+rock-paper-scissors-cross-chain/
+
+# Cargo lock files
+Cargo.lock
+**/Cargo.lock
+
+# Documentation files
+**/target/doc/
+**/*.html
+**/*.css
+**/*.js
+
+# Test and example files
+**/examples/
+**/benches/
+**/tests/
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+
+# Coverage reports
+**/coverage/
+**/*.lcov
+
+# Build artifacts
+**/build/
+**/dist/
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+
+# Debug files
+**/*.d
+**/*.pdb
+
+# Editor backup files
+**/*~
+**/#*#
+**/.#*
+
+# Cargo metadata
+**/.cargo/
+**/Cargo.lock.bk
+
+# WebAssembly files
+**/*.wasm
+**/*.wat
+
+# Blockchain-specific files
+**/genesis.json
+**/config.json
+**/wallet.json
+**/linera.*
