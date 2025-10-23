@@ -289,7 +289,7 @@ impl Contract for NativeFungibleTokenContract {
                     Err(e) => panic!("Failed to get all rounds: {}", e),
                 }
             }
-            
+
             ExtendedOperation::PlaceBet { amount, prediction } => {
                 let owner = self.runtime.authenticated_signer().expect("Authentication required");
                 let state_prediction = prediction_from_lib(prediction);

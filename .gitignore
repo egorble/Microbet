@@ -33,9 +33,6 @@ target/
 # Lock files
 **/*.lock
 
-# Markdown files
-**/*.md
-
 # Smart contracts
 **/smart_contracts/
 **/smart-contracts/

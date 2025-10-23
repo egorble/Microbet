@@ -58,14 +58,14 @@ pub struct PredictionRound {
     pub closed_at: Option<u64>,
     pub resolved_at: Option<u64>,
     pub status: RoundStatus,
-    pub closing_price: Option<u64>,    // Price at which round was closed
-    pub resolution_price: Option<u64>, // Price used to resolve the round
-    pub up_bets: u64,                  // Number of up bets
-    pub down_bets: u64,                // Number of down bets
-    pub up_bets_pool: Amount,          // Total amount of up bets
-    pub down_bets_pool: Amount,        // Total amount of down bets
-    pub prize_pool: Amount,            // Total amount of tokens bet in this round
-    pub result: Option<Prediction>,    // Result of the round (Up, Down, or None if not resolved)
+    pub closing_price: Option<Amount>,    // Price at which round was closed (fractional)
+    pub resolution_price: Option<Amount>, // Price used to resolve the round (fractional)
+    pub up_bets: u64,                     // Number of up bets
+    pub down_bets: u64,                   // Number of down bets
+    pub up_bets_pool: Amount,             // Total amount of up bets
+    pub down_bets_pool: Amount,           // Total amount of down bets
+    pub prize_pool: Amount,               // Total amount of tokens bet in this round
+    pub result: Option<Prediction>,       // Result of the round (Up, Down, or None if not resolved)
 }
 
 // A user's bet in a prediction round
@@ -141,9 +141,9 @@ pub enum ExtendedOperation {
     /// Create a new prediction round
     CreateRound,
     /// Close the active round with a closing price
-    CloseRound { closing_price: u64 },
+    CloseRound { closing_price: Amount },
     /// Resolve a closed round with a resolution price
-    ResolveRound { resolution_price: u64 },
+    ResolveRound { resolution_price: Amount },
     /// Place a bet in the active round
     PlaceBet { amount: Amount, prediction: Prediction },
     /// Claim winnings from a resolved round

@@ -64,8 +64,8 @@ pub struct PredictionRound {
     pub closed_at: Option<u64>,
     pub resolved_at: Option<u64>,
     pub status: RoundStatus,
-    pub closing_price: Option<u64>,
-    pub resolution_price: Option<u64>,
+    pub closing_price: Option<Amount>,
+    pub resolution_price: Option<Amount>,
     pub up_bets: u64,                  // Number of up bets
     pub down_bets: u64,                // Number of down bets
     pub up_bets_pool: Amount,          // Total amount of up bets
@@ -140,7 +140,7 @@ impl NativeFungibleTokenState {
     }
     
     /// Close the active round
-    pub async fn close_round(&mut self, closing_price: u64, timestamp: u64) -> Result<(), String> {
+    pub async fn close_round(&mut self, closing_price: Amount, timestamp: u64) -> Result<(), String> {
         let round_id_opt = self.active_round.get();
         
         if let Some(round_id) = *round_id_opt {
@@ -215,7 +215,7 @@ impl NativeFungibleTokenState {
     }
     
     /// Resolve a closed round
-    pub async fn resolve_round(&mut self, round_id: u64, resolution_price: u64, timestamp: u64) -> Result<(), String> {
+    pub async fn resolve_round(&mut self, round_id: u64, resolution_price: Amount, timestamp: u64) -> Result<(), String> {
         let mut round = self.rounds.get(&round_id).await
             .map_err(|e: ViewError| format!("Failed to get round: {:?}", e))?
             .ok_or("Round not found")?

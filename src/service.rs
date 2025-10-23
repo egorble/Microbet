@@ -386,14 +386,18 @@ impl MutationRoot {
     }
     
     /// Close the active round with a closing price
-    async fn close_round(&self, closing_price: u64) -> String {
-        self.runtime.schedule_operation(&ExtendedOperation::CloseRound { closing_price });
+    async fn close_round(&self, closing_price: String) -> String {
+        use linera_sdk::linera_base_types::Amount;
+        let amount = closing_price.parse::<Amount>().unwrap_or_default();
+        self.runtime.schedule_operation(&ExtendedOperation::CloseRound { closing_price: amount });
         "CloseRound operation scheduled".to_string()
     }
     
     /// Resolve a closed round with a resolution price
-    async fn resolve_round(&self, resolution_price: u64) -> String {
-        self.runtime.schedule_operation(&ExtendedOperation::ResolveRound { resolution_price });
+    async fn resolve_round(&self, resolution_price: String) -> String {
+        use linera_sdk::linera_base_types::Amount;
+        let amount = resolution_price.parse::<Amount>().unwrap_or_default();
+        self.runtime.schedule_operation(&ExtendedOperation::ResolveRound { resolution_price: amount });
         "ResolveRound operation scheduled".to_string()
     }
     
