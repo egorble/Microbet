@@ -9,6 +9,8 @@ This implementation extends the native fungible token example with prediction ga
 - Native token (NAT) transfers with prediction parameters
 - Cross-chain token transfers with automatic bet placement
 - Round-based prediction system (Active, Closed, Resolved)
+- Automatic creation of new rounds when current round is closed
+- Automatic reward distribution when a round is resolved
 - Proportional reward distribution to winners
 - GraphQL interface for queries and mutations
 
@@ -18,37 +20,42 @@ This implementation extends the native fungible token example with prediction ga
 1. **Rounds**: Time-based prediction periods with three states:
    - Active: Players can place bets
    - Closed: No more bets, waiting for result
-   - Resolved: Results announced, winners can claim rewards
+   - Resolved: Results announced, rewards automatically distributed
 
 2. **Bets**: Players place bets on "UP" or "DOWN" predictions during active rounds
 
 3. **Cross-chain transfers**: NAT tokens can be transferred between chains with prediction parameters
 
 ### Game Flow
-1. Admin creates a round (becomes Active)
+1. Admin creates a round (becomes Active) or a new round is automatically created
 2. Players transfer NAT tokens with prediction parameter (UP/DOWN)
 3. Admin closes the round (provides closing price as decimal value)
-4. Admin resolves the round (provides resolution price as decimal value)
-5. Winners claim their rewards or admin uses sendRewards to distribute to all winners
+4. System automatically creates a new active round
+5. Admin resolves the closed round with a resolution price
+6. System automatically distributes rewards to all winners
 
 ### Cross-chain Functionality
 - Tokens transferred with prediction parameter automatically create bets
-- Winners on other chains receive rewards via cross-chain transfers
+- Winners on other chains automatically receive rewards via cross-chain transfers
 - All operations work seamlessly across multiple chains
 
 ### Key Operations
 - `createRound`: Start a new prediction round
 - `transfer`: Send tokens with prediction (automatically places bet)
-- `closeRound`: Close active round for betting (accepts decimal price)
-- `resolveRound`: Resolve closed round with result (accepts decimal price)
-- `sendRewards`: Distribute winnings to all winners in one transaction
-- `claimWinnings`: Winner claims their rewards
+- `closeRound`: Close active round for betting (accepts decimal price) and automatically creates new round
+- `resolveRound`: Resolve closed round with result (accepts decimal price) and automatically distributes rewards
+- `sendRewards`: Manual reward distribution (now automatic, kept for backward compatibility)
+- `claimWinnings`: Winner claims their rewards (now automatic, kept for backward compatibility)
 
 ### GraphQL Endpoints
 - Queries: Get rounds, active bets, resolved bets
 - Mutations: All operations that change state
 
 The system automatically handles bet placement when tokens are transferred with prediction parameters, making it easy for players to participate from any chain. Prices can now be specified as decimal values (e.g., "123.45") instead of just integers.
+
+When a round is closed, a new active round is automatically created, ensuring continuous gameplay without manual intervention.
+
+When a round is resolved, rewards are automatically distributed to all winners, eliminating the need for manual reward distribution.
 
 ## Smart Contract Structure
 - `contract.rs`: Main contract logic handling operations and messages

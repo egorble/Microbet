@@ -418,8 +418,9 @@ impl MutationRoot {
     }
     
     /// Send rewards to all winners in a resolved round
+    /// NOTE: This operation is now automatic when a round is resolved and no longer needs to be called manually
     async fn send_rewards(&self, round_id: u64) -> String {
         self.runtime.schedule_operation(&ExtendedOperation::SendRewards { round_id });
-        "SendRewards operation scheduled".to_string()
+        "SendRewards operation scheduled (NOTE: Rewards are now automatically distributed when a round is resolved)".to_string()
     }
 }

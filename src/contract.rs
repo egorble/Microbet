@@ -258,7 +258,7 @@ impl Contract for NativeFungibleTokenContract {
             ExtendedOperation::CloseRound { closing_price } => {
                 let timestamp = self.runtime.system_time().micros();
                 match self.state.close_round(closing_price, timestamp).await {
-                    Ok(()) => ExtendedResponse::Ok,
+                    Ok(new_round_id) => ExtendedResponse::RoundId(new_round_id),
                     Err(e) => panic!("Failed to close round: {}", e),
                 }
             }
@@ -278,9 +278,63 @@ impl Contract for NativeFungibleTokenContract {
                         
                         match closed_round {
                             Some(round) => {
-                                match self.state.resolve_round(round.id, resolution_price, timestamp).await {
-                                    Ok(()) => ExtendedResponse::Ok,
-                                    Err(e) => panic!("Failed to resolve round: {}", e),
+                                // Resolve the round and automatically distribute rewards
+                                match self.state.resolve_round_and_distribute_rewards(round.id, resolution_price, timestamp).await {
+                                    Ok(winners) => {
+                                        // Distribute rewards to all winners
+                                        let mut source_chains = std::collections::HashSet::new();
+                                        
+                                        for (owner, _bet_amount, winnings, source_chain_id) in winners {
+                                            if winnings > Amount::ZERO {
+                                                // Check if this is a cross-chain winner
+                                                if let Some(source_chain_id_str) = source_chain_id {
+                                                    // Try to parse the source chain ID (parse only once and reuse)
+                                                    match source_chain_id_str.parse::<ChainId>() {
+                                                        Ok(source_chain_id) => {
+                                                            // This is a cross-chain winner, send tokens via cross-chain transfer
+                                                            let target_account = Account {
+                                                                chain_id: source_chain_id,
+                                                                owner: owner.clone(),
+                                                            };
+                                                            
+                                                            // Transfer reward from chain account to winner on source chain
+                                                            self.runtime.transfer(AccountOwner::CHAIN, target_account, winnings);
+                                                            
+                                                            // Collect unique source chains for notify messages
+                                                            source_chains.insert(source_chain_id);
+                                                        }
+                                                        Err(_) => {
+                                                            // If we can't parse the source chain ID, send to local owner
+                                                            let target_account = Account {
+                                                                chain_id: self.runtime.chain_id(),
+                                                                owner: owner.clone(),
+                                                            };
+                                                            self.runtime.transfer(AccountOwner::CHAIN, target_account, winnings);
+                                                        }
+                                                    }
+                                                } else {
+                                                    // This is a local winner, send tokens directly
+                                                    let target_account = Account {
+                                                        chain_id: self.runtime.chain_id(),
+                                                        owner: owner.clone(),
+                                                    };
+                                                    self.runtime.transfer(AccountOwner::CHAIN, target_account, winnings);
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Send notify messages to all unique source chains only once
+                                        for source_chain_id in source_chains {
+                                            let message = Message::Notify;
+                                            self.runtime
+                                                .prepare_message(message)
+                                                .with_authentication()
+                                                .send_to(source_chain_id);
+                                        }
+                                        
+                                        ExtendedResponse::Ok
+                                    },
+                                    Err(e) => panic!("Failed to resolve round and distribute rewards: {}", e),
                                 }
                             },
                             None => panic!("No closed round to resolve"),
@@ -309,11 +363,10 @@ impl Contract for NativeFungibleTokenContract {
                 }
             }
             
-            ExtendedOperation::SendRewards { round_id } => {
-                match self.send_rewards(round_id).await {
-                    Ok(()) => ExtendedResponse::Ok,
-                    Err(e) => panic!("Failed to send rewards: {}", e),
-                }
+            ExtendedOperation::SendRewards { round_id: _ } => {
+                // Rewards are now automatically distributed when a round is resolved
+                // This operation is kept for backward compatibility but does nothing
+                ExtendedResponse::Ok
             }
             
             // Query operations for prediction game state

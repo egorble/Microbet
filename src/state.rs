@@ -140,7 +140,7 @@ impl NativeFungibleTokenState {
     }
     
     /// Close the active round
-    pub async fn close_round(&mut self, closing_price: Amount, timestamp: u64) -> Result<(), String> {
+    pub async fn close_round(&mut self, closing_price: Amount, timestamp: u64) -> Result<u64, String> {
         let round_id_opt = self.active_round.get();
         
         if let Some(round_id) = *round_id_opt {
@@ -209,9 +209,46 @@ impl NativeFungibleTokenState {
                 self.active_bets.remove(&bet_key.1)
                     .map_err(|e: ViewError| format!("Failed to remove active bet: {:?}", e))?;
             }
+            
+            // Automatically create a new round after closing the current one
+            let new_round_id = *self.round_counter.get() + 1;
+            self.round_counter.set(new_round_id);
+            
+            let new_round = PredictionRound {
+                id: new_round_id,
+                created_at: timestamp,
+                closed_at: None,
+                resolved_at: None,
+                status: RoundStatus::Active,
+                closing_price: None,
+                resolution_price: None,
+                up_bets: 0,
+                down_bets: 0,
+                up_bets_pool: Amount::default(),
+                down_bets_pool: Amount::default(),
+                prize_pool: Amount::default(),
+                result: None,
+            };
+            
+            self.rounds.insert(&new_round_id, new_round)
+                .map_err(|e: ViewError| format!("Failed to insert new round: {:?}", e))?;
+            self.active_round.set(Some(new_round_id));
+            
+            // Clear active bets for the new round by removing all entries
+            let keys: Vec<AccountOwner> = self.active_bets.indices().await
+                .map_err(|e: ViewError| format!("Failed to get active bet indices: {:?}", e))?
+                .into_iter()
+                .collect();
+            
+            for key in keys {
+                self.active_bets.remove(&key)
+                    .map_err(|e: ViewError| format!("Failed to remove active bet: {:?}", e))?;
+            }
+            
+            Ok(new_round_id)
+        } else {
+            Err("No active round to close".to_string())
         }
-        
-        Ok(())
     }
     
     /// Resolve a closed round
@@ -271,6 +308,127 @@ impl NativeFungibleTokenState {
         }
         
         Ok(())
+    }
+    
+    /// Resolve a closed round and automatically distribute rewards
+    pub async fn resolve_round_and_distribute_rewards(&mut self, round_id: u64, resolution_price: Amount, timestamp: u64) -> Result<Vec<(AccountOwner, Amount, Amount, Option<String>)>, String> {
+        let mut round = self.rounds.get(&round_id).await
+            .map_err(|e: ViewError| format!("Failed to get round: {:?}", e))?
+            .ok_or("Round not found")?
+            .clone();
+        
+        if round.status != RoundStatus::Closed {
+            return Err("Round is not closed".to_string());
+        }
+        
+        // Determine the result based on closing and resolution prices
+        let closing_price = round.closing_price.ok_or("Round has no closing price")?;
+        let result = if resolution_price > closing_price {
+            Some(Prediction::Up)
+        } else if resolution_price < closing_price {
+            Some(Prediction::Down)
+        } else {
+            // If prices are equal, no one wins
+            None
+        };
+        
+        round.result = result;
+        round.status = RoundStatus::Resolved;
+        round.resolved_at = Some(timestamp);
+        round.resolution_price = Some(resolution_price);
+        
+        self.rounds.insert(&round_id, round)
+            .map_err(|e: ViewError| format!("Failed to update round: {:?}", e))?;
+        
+        // Move closed bets to resolved bets
+        let keys: Vec<(u64, AccountOwner)> = self.closed_bets.indices().await
+            .map_err(|e: ViewError| format!("Failed to get closed bet indices: {:?}", e))?
+            .into_iter()
+            .filter(|(id, _)| *id == round_id)
+            .collect();
+        
+        // Pre-allocate vector for better performance
+        let mut bets_to_move = Vec::with_capacity(keys.len());
+        
+        // Collect all bets to move
+        for bet_key in keys {
+            if let Some(bet) = self.closed_bets.get(&bet_key).await
+                .map_err(|e: ViewError| format!("Failed to get closed bet: {:?}", e))? {
+                bets_to_move.push((bet_key, bet));
+            }
+        }
+        
+        // Move bets in batch
+        for (bet_key, bet) in bets_to_move {
+            self.resolved_bets.insert(&bet_key, bet)
+                .map_err(|e: ViewError| format!("Failed to move bet to resolved: {:?}", e))?;
+            self.closed_bets.remove(&bet_key)
+                .map_err(|e: ViewError| format!("Failed to remove closed bet: {:?}", e))?;
+        }
+        
+        // Calculate and return winners for reward distribution
+        let round = self.rounds.get(&round_id).await
+            .map_err(|e: ViewError| format!("Failed to get round: {:?}", e))?
+            .ok_or("Round not found")?;
+        
+        if round.status != RoundStatus::Resolved {
+            return Err("Round is not resolved".to_string());
+        }
+        
+        let result = round.result.ok_or("Round has no result")?;
+        
+        // Calculate total prize pool and winner pool
+        let total_prize_pool = round.prize_pool;
+        let winner_pool = match result {
+            Prediction::Up => round.up_bets_pool,
+            Prediction::Down => round.down_bets_pool,
+        };
+        
+        if winner_pool.is_zero() {
+            return Ok(Vec::new()); // No winners
+        }
+        
+        // Get all resolved bets for this specific round
+        // Instead of iterating through all resolved bets, we can directly access bets for this round
+        let bet_indices = self.resolved_bets.indices().await
+            .map_err(|e: ViewError| format!("Failed to get resolved bet indices: {:?}", e))?;
+        
+        // Pre-filter indices to only include those matching our round_id
+        let round_bet_indices: Vec<_> = bet_indices
+            .into_iter()
+            .filter(|(id, _)| *id == round_id)
+            .collect();
+        
+        let mut winners = Vec::new();
+        
+        // Process only the bets for this specific round
+        for (id, owner) in round_bet_indices {
+            if let Some(bet) = self.resolved_bets.get(&(id, owner.clone())).await
+                .map_err(|e: ViewError| format!("Failed to get bet: {:?}", e))? {
+                
+                // Only include winners who haven't claimed yet
+                if bet.prediction == result && !bet.claimed {
+                    // Calculate winnings properly
+                    // Winnings = (bet_amount / winner_pool) * total_prize_pool
+                    let winnings = if !winner_pool.is_zero() {
+                        calculate_winnings_proportional(bet.amount, winner_pool, total_prize_pool)
+                    } else {
+                        Amount::ZERO
+                    };
+                    
+                    // Mark bet as claimed
+                    let mut updated_bet = bet.clone();
+                    updated_bet.claimed = true;
+                    self.resolved_bets.insert(&(id, owner.clone()), updated_bet)
+                        .map_err(|e: ViewError| format!("Failed to update bet: {:?}", e))?;
+                    
+                    // Avoid cloning source_chain_id, use as_ref() instead
+                    winners.push((owner, bet.amount, winnings, bet.source_chain_id.clone()));
+                }
+            }
+        }
+        
+        Ok(winners)
     }
     
     /// Place a bet in the active round
