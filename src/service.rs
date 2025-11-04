@@ -99,6 +99,12 @@ impl Accounts {
     async fn keys(&self) -> Vec<AccountOwner> {
         self.runtime.balance_owners()
     }
+    
+    /// Get the chain balance (total balance of the chain)
+    async fn chain_balance(&self) -> String {
+        let balance = self.runtime.chain_balance();
+        balance.to_string()
+    }
 }
 
 // Query root for GraphQL queries
@@ -118,6 +124,12 @@ impl QueryRoot {
         Ok(Accounts {
             runtime: self.runtime.clone(),
         })
+    }
+    
+    /// Get the chain balance (total balance of the chain)
+    async fn chain_balance(&self) -> Result<String, async_graphql::Error> {
+        let balance = self.runtime.chain_balance();
+        Ok(balance.to_string())
     }
     
     // Prediction game queries
@@ -303,6 +315,12 @@ impl MutationRoot {
         "Balance operation scheduled".to_string()
     }
 
+    /// Get the chain balance (total balance of the chain)
+    async fn chain_balance(&self) -> String {
+        self.runtime.schedule_operation(&ExtendedOperation::ChainBalance);
+        "ChainBalance operation scheduled".to_string()
+    }
+
     /// Get the ticker symbol
     async fn ticker_symbol(&self) -> String {
         self.runtime.schedule_operation(&ExtendedOperation::TickerSymbol);
@@ -415,12 +433,5 @@ impl MutationRoot {
     async fn claim_winnings(&self, round_id: u64) -> String {
         self.runtime.schedule_operation(&ExtendedOperation::ClaimWinnings { round_id });
         "ClaimWinnings operation scheduled".to_string()
-    }
-    
-    /// Send rewards to all winners in a resolved round
-    /// NOTE: This operation is now automatic when a round is resolved and no longer needs to be called manually
-    async fn send_rewards(&self, round_id: u64) -> String {
-        self.runtime.schedule_operation(&ExtendedOperation::SendRewards { round_id });
-        "SendRewards operation scheduled (NOTE: Rewards are now automatically distributed when a round is resolved)".to_string()
     }
 }

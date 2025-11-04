@@ -11,6 +11,7 @@ This implementation extends the native fungible token example with prediction ga
 - Round-based prediction system (Active, Closed, Resolved)
 - Automatic creation of new rounds when current round is closed
 - Automatic reward distribution when a round is resolved
+- Rewards are distributed from the resolver's owner balance
 - Proportional reward distribution to winners
 - GraphQL interface for queries and mutations
 
@@ -32,7 +33,7 @@ This implementation extends the native fungible token example with prediction ga
 3. Admin closes the round (provides closing price as decimal value)
 4. System automatically creates a new active round
 5. Admin resolves the closed round with a resolution price
-6. System automatically distributes rewards to all winners
+6. System automatically distributes rewards to all winners from the resolver's owner balance
 
 ### Cross-chain Functionality
 - Tokens transferred with prediction parameter automatically create bets
@@ -43,9 +44,8 @@ This implementation extends the native fungible token example with prediction ga
 - `createRound`: Start a new prediction round
 - `transfer`: Send tokens with prediction (automatically places bet)
 - `closeRound`: Close active round for betting (accepts decimal price) and automatically creates new round
-- `resolveRound`: Resolve closed round with result (accepts decimal price) and automatically distributes rewards
-- `sendRewards`: Manual reward distribution (now automatic, kept for backward compatibility)
-- `claimWinnings`: Winner claims their rewards (now automatic, kept for backward compatibility)
+- `resolveRound`: Resolve closed round with result (accepts decimal price) and automatically distributes rewards from resolver's owner balance
+- `claimWinnings`: Winner claims their rewards (for manual claiming if needed)
 
 ### GraphQL Endpoints
 - Queries: Get rounds, active bets, resolved bets
@@ -55,7 +55,7 @@ The system automatically handles bet placement when tokens are transferred with 
 
 When a round is closed, a new active round is automatically created, ensuring continuous gameplay without manual intervention.
 
-When a round is resolved, rewards are automatically distributed to all winners, eliminating the need for manual reward distribution.
+When a round is resolved, rewards are automatically distributed to all winners from the resolver's owner balance, eliminating the need for a separate reward distribution operation.
 
 ## Smart Contract Structure
 - `contract.rs`: Main contract logic handling operations and messages

@@ -111,6 +111,11 @@ impl Contract for NativeFungibleTokenContract {
                 ExtendedResponse::Balance(balance)
             }
 
+            ExtendedOperation::ChainBalance => {
+                let balance = self.runtime.chain_balance();
+                ExtendedResponse::ChainBalance(balance)
+            }
+
             ExtendedOperation::TickerSymbol => {
                 ExtendedResponse::TickerSymbol(String::from(TICKER_SYMBOL))
             }
@@ -268,6 +273,9 @@ impl Contract for NativeFungibleTokenContract {
                 // Let's find the last closed round to resolve
                 let timestamp = self.runtime.system_time().micros();
                 
+                // Get the authenticated signer (owner of the chain where resolution is happening)
+                let resolver_owner = self.runtime.authenticated_signer().expect("Authentication required for round resolution");
+                
                 // Get all rounds and find the last closed one
                 match self.state.get_all_rounds().await {
                     Ok(rounds) => {
@@ -278,12 +286,13 @@ impl Contract for NativeFungibleTokenContract {
                         
                         match closed_round {
                             Some(round) => {
-                                // Resolve the round and automatically distribute rewards
+                                // Resolve the round and get winners for automatic reward distribution
                                 match self.state.resolve_round_and_distribute_rewards(round.id, resolution_price, timestamp).await {
                                     Ok(winners) => {
-                                        // Distribute rewards to all winners
+                                        // Automatically distribute rewards to all winners
                                         let mut source_chains = std::collections::HashSet::new();
                                         
+                                        // Send rewards to winners
                                         for (owner, _bet_amount, winnings, source_chain_id) in winners {
                                             if winnings > Amount::ZERO {
                                                 // Check if this is a cross-chain winner
@@ -297,8 +306,8 @@ impl Contract for NativeFungibleTokenContract {
                                                                 owner: owner.clone(),
                                                             };
                                                             
-                                                            // Transfer reward from chain account to winner on source chain
-                                                            self.runtime.transfer(AccountOwner::CHAIN, target_account, winnings);
+                                                            // Transfer reward from resolver's owner balance to winner on source chain
+                                                            self.runtime.transfer(resolver_owner, target_account, winnings);
                                                             
                                                             // Collect unique source chains for notify messages
                                                             source_chains.insert(source_chain_id);
@@ -309,7 +318,7 @@ impl Contract for NativeFungibleTokenContract {
                                                                 chain_id: self.runtime.chain_id(),
                                                                 owner: owner.clone(),
                                                             };
-                                                            self.runtime.transfer(AccountOwner::CHAIN, target_account, winnings);
+                                                            self.runtime.transfer(resolver_owner, target_account, winnings);
                                                         }
                                                     }
                                                 } else {
@@ -318,7 +327,16 @@ impl Contract for NativeFungibleTokenContract {
                                                         chain_id: self.runtime.chain_id(),
                                                         owner: owner.clone(),
                                                     };
-                                                    self.runtime.transfer(AccountOwner::CHAIN, target_account, winnings);
+                                                    self.runtime.transfer(resolver_owner, target_account, winnings);
+                                                }
+                                                
+                                                // Mark bet as claimed
+                                                let bet_key = (round.id, owner.clone());
+                                                if let Some(mut bet) = self.state.resolved_bets.get(&bet_key).await
+                                                    .map_err(|e| format!("Failed to get bet: {:?}", e)).unwrap() {
+                                                    bet.claimed = true;
+                                                    self.state.resolved_bets.insert(&bet_key, bet)
+                                                        .map_err(|e| format!("Failed to update bet: {:?}", e)).unwrap();
                                                 }
                                             }
                                         }
@@ -362,13 +380,7 @@ impl Contract for NativeFungibleTokenContract {
                     Err(e) => panic!("Failed to claim winnings: {}", e),
                 }
             }
-            
-            ExtendedOperation::SendRewards { round_id: _ } => {
-                // Rewards are now automatically distributed when a round is resolved
-                // This operation is kept for backward compatibility but does nothing
-                ExtendedResponse::Ok
-            }
-            
+
             // Query operations for prediction game state
             ExtendedOperation::GetActiveRound => {
                 match self.state.get_active_round().await {

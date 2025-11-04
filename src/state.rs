@@ -366,67 +366,9 @@ impl NativeFungibleTokenState {
                 .map_err(|e: ViewError| format!("Failed to remove closed bet: {:?}", e))?;
         }
         
-        // Calculate and return winners for reward distribution
-        let round = self.rounds.get(&round_id).await
-            .map_err(|e: ViewError| format!("Failed to get round: {:?}", e))?
-            .ok_or("Round not found")?;
-        
-        if round.status != RoundStatus::Resolved {
-            return Err("Round is not resolved".to_string());
-        }
-        
-        let result = round.result.ok_or("Round has no result")?;
-        
-        // Calculate total prize pool and winner pool
-        let total_prize_pool = round.prize_pool;
-        let winner_pool = match result {
-            Prediction::Up => round.up_bets_pool,
-            Prediction::Down => round.down_bets_pool,
-        };
-        
-        if winner_pool.is_zero() {
-            return Ok(Vec::new()); // No winners
-        }
-        
-        // Get all resolved bets for this specific round
-        // Instead of iterating through all resolved bets, we can directly access bets for this round
-        let bet_indices = self.resolved_bets.indices().await
-            .map_err(|e: ViewError| format!("Failed to get resolved bet indices: {:?}", e))?;
-        
-        // Pre-filter indices to only include those matching our round_id
-        let round_bet_indices: Vec<_> = bet_indices
-            .into_iter()
-            .filter(|(id, _)| *id == round_id)
-            .collect();
-        
-        let mut winners = Vec::new();
-        
-        // Process only the bets for this specific round
-        for (id, owner) in round_bet_indices {
-            if let Some(bet) = self.resolved_bets.get(&(id, owner.clone())).await
-                .map_err(|e: ViewError| format!("Failed to get bet: {:?}", e))? {
-                
-                // Only include winners who haven't claimed yet
-                if bet.prediction == result && !bet.claimed {
-                    // Calculate winnings properly
-                    // Winnings = (bet_amount / winner_pool) * total_prize_pool
-                    let winnings = if !winner_pool.is_zero() {
-                        calculate_winnings_proportional(bet.amount, winner_pool, total_prize_pool)
-                    } else {
-                        Amount::ZERO
-                    };
-                    
-                    // Mark bet as claimed
-                    let mut updated_bet = bet.clone();
-                    updated_bet.claimed = true;
-                    self.resolved_bets.insert(&(id, owner.clone()), updated_bet)
-                        .map_err(|e: ViewError| format!("Failed to update bet: {:?}", e))?;
-                    
-                    // Avoid cloning source_chain_id, use as_ref() instead
-                    winners.push((owner, bet.amount, winnings, bet.source_chain_id.clone()));
-                }
-            }
-        }
+        // Get winners for reward distribution
+        let winners = self.get_round_winners(round_id).await
+            .map_err(|e| format!("Failed to get round winners: {:?}", e))?;
         
         Ok(winners)
     }

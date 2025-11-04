@@ -113,6 +113,8 @@ impl ServiceAbi for ExtendedNativeFungibleTokenAbi {
 pub enum ExtendedOperation {
     /// Get balance for an account owner
     Balance { owner: AccountOwner },
+    /// Get the chain balance (total balance of the chain)
+    ChainBalance,
     /// Get the ticker symbol
     TickerSymbol,
     /// Transfer tokens between accounts
@@ -148,8 +150,6 @@ pub enum ExtendedOperation {
     PlaceBet { amount: Amount, prediction: Prediction },
     /// Claim winnings from a resolved round
     ClaimWinnings { round_id: u64 },
-    /// Send rewards to all winners in a resolved round
-    SendRewards { round_id: u64 },
 
     // Query operations for prediction game state
     /// Get the active round
@@ -168,6 +168,7 @@ pub enum ExtendedOperation {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum ExtendedResponse {
     Balance(Amount),
+    ChainBalance(Amount),
     TickerSymbol(String),
     Ok,
     RoundId(u64),
