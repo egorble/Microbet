@@ -1,5 +1,5 @@
 # Up/Down Prediction Game on Linera
-
+Frontend part - https://github.com/egorble/MicrobetFront
 ## Overview
 This is a cross-chain prediction game built on the Linera blockchain platform. Players can predict whether a value will go "UP" or "DOWN" for each round and place bets using NAT tokens.
 
